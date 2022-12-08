@@ -1,4 +1,4 @@
-import {BLOCKCHAIN_NAME, BlockchainName, CrossChainTrade, InstantTrade, SDK} from "rubic-sdk";
+import {BLOCKCHAIN_NAME, BlockchainName, OnChainTrade, CrossChainTrade, SDK, CHAIN_TYPE, WalletProvider} from "rubic-sdk";
 import React, {useEffect, useState} from "react";
 import TokenSelector from "./TokenSelector";
 import AmountInput from "./AmountInput";
@@ -11,7 +11,7 @@ import {configuration} from "../constants/sdk-config";
 import LoginBlock from "./LoginBlock";
 import Box from "@mui/joy/Box";
 import SwapBlock from "./SwapBlock";
-import {LifiTrade} from "rubic-sdk/lib/features/instant-trades/dexes/common/lifi/lifi-trade";
+// import {LifiTrade} from "rubic-sdk/lib/features/instant-trades/dexes/common/lifi/lifi-trade";
 import {BlockchainInfo} from "../constants/blockchain-info";
 
 export interface FormProps {}
@@ -19,7 +19,7 @@ export interface FormProps {}
 const Form = ({}: FormProps) => {
     const [amount, setAmount] = useState<number>(0);
     const [loading, setLoading] = useState(true);
-    const [address, setAddress] = useState<string | null>(null);
+    const [address, setAddress] = useState<string>('');
 
     const [fromBlockchain, setFromBlockchain] = useState<BlockchainName>(BLOCKCHAIN_NAME.BINANCE_SMART_CHAIN);
     const [toBlockchain, setToBlockchain] = useState<BlockchainName>(BLOCKCHAIN_NAME.POLYGON);
@@ -47,7 +47,7 @@ const Form = ({}: FormProps) => {
         setAmount(amount);
     }
 
-    const onLogin = (address: string | null) => {
+    const onLogin = (address: string) => {
         setAddress(address);
     }
 
@@ -65,13 +65,13 @@ const Form = ({}: FormProps) => {
             try {
                 console.log('Calculating trade, be patient...')
                 if (fromBlockchain === toBlockchain) {
-                    const wrappedTrades = await (sdk.instantTrades.calculateTrade(fromToken, String(amount), toToken))
-                    const bestTrade = wrappedTrades.filter(el =>  !(el instanceof LifiTrade))[0];
-                    if (bestTrade instanceof InstantTrade) {
+                    const wrappedTrades = await (sdk.onChainManager.calculateTrade(fromToken, String(amount), toToken))
+                    const bestTrade = wrappedTrades.filter(el =>  !(el instanceof OnChainTrade))[0];
+                    if (bestTrade instanceof OnChainTrade) {
                         setTrade(bestTrade);
                     }
                 } else {
-                    const wrappedTrades = await (sdk.crossChain.calculateTrade(fromToken, String(amount), toToken))
+                    const wrappedTrades = await (sdk.crossChainManager.calculateTrade(fromToken, String(amount), toToken))
                     console.log('Response:', wrappedTrades)
                     const validTrades = wrappedTrades.filter(x => x.trade != null)
                     const bestTrade = validTrades.length > 0 ? validTrades[0] : undefined
@@ -88,7 +88,7 @@ const Form = ({}: FormProps) => {
         }
     }
 
-    const [trade, setTrade] = useState<CrossChainTrade | InstantTrade | null>(null);
+    const [trade, setTrade] = useState<CrossChainTrade | OnChainTrade | null>(null);
 
     useEffect(() => {
         const filteredTokens = tokens.filter(el => el.blockchain === fromBlockchain);
@@ -110,13 +110,16 @@ const Form = ({}: FormProps) => {
     useAsyncEffect(async () => {
         setLoading(true);
         try {
+            const walletProvider: WalletProvider = {
+                [CHAIN_TYPE.EVM]: {
+                    address,
+                    core: window.ethereum
+                },
+            };
+
             await sdk?.updateConfiguration({
                 ...configuration,
-                walletProvider: address ? {
-                    core: window.ethereum,
-                    chainId: window.ethereum?.networkVersion,
-                    address
-                } : undefined,
+                walletProvider: address ? walletProvider : undefined,
             });
         } finally {
             setLoading(false);

@@ -9,7 +9,7 @@ declare global {
 
 
 interface LoginBlockProps {
-    onLogin: (address: string | null) => void;
+    onLogin: (address: string) => void;
     address: string | null;
 }
 
